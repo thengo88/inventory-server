@@ -129,12 +129,14 @@ async function uploadToGoogleDrive(filePath, fileName) {
             mimeType: 'image/jpeg',
             body: fs.createReadStream(filePath)
         };
-
+        console.log('[DEBUG] Sending create request to Drive API...');
         const response = await drive.files.create({
             auth: authClient,
-            resource: fileMetadata,
+            requestBody: fileMetadata, // Changed from resource to requestBody
             media: media,
-            fields: 'id, webViewLink, webContentLink'
+            fields: 'id, webViewLink, webContentLink',
+            supportsAllDrives: true, // Support Shared Drives
+            keepRevisionForever: true
         });
 
         // Make file publicly accessible
