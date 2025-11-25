@@ -110,8 +110,12 @@ const db = new sqlite3.Database(DB_PATH);
  * Upload file to Google Drive
  */
 async function uploadToGoogleDrive(filePath, fileName) {
+    console.log(`[DEBUG] Starting uploadToGoogleDrive: ${fileName}`);
+    console.log(`[DEBUG] GOOGLE_DRIVE_FOLDER_ID: ${GOOGLE_DRIVE_FOLDER_ID}`);
+    console.log(`[DEBUG] Auth initialized: ${!!auth}`);
+
     if (!auth || !GOOGLE_DRIVE_FOLDER_ID) {
-        console.warn('⚠️  Google Drive not configured, keeping local file');
+        console.warn('⚠️  Google Drive not configured (Missing Auth or Folder ID)');
         return null;
     }
 
