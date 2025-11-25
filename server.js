@@ -392,7 +392,7 @@ app.get('/admin/history', (req, res) => {
 app.get('/admin/download', (req, res) => {
     if (!req.session.user) return res.redirect('/admin');
     if (GOOGLE_SHEETS_ID) {
-        res.redirect(`[https://docs.google.com/spreadsheets/d/${GOOGLE_SHEETS_ID}/export?format=xlsx`](https://docs.google.com/spreadsheets/d/${GOOGLE_SHEETS_ID}/export?format=xlsx`));
+        res.redirect(`https://docs.google.com/spreadsheets/d/${GOOGLE_SHEETS_ID}/export?format=xlsx`);
     } else {
         res.send('Google Sheets chưa được cấu hình.');
     }
@@ -582,4 +582,5 @@ server.listen(PORT, '0.0.0.0', () => {
     const ip = getLocalIp();
     console.log(`🚀 Server đang chạy tại: http://${ip}:${PORT}/admin`);
     console.log(`📊 Google Sheets ID: ${GOOGLE_SHEETS_ID || 'Chưa cấu hình'}`);
-    console
+    console.log(`📁 Google Drive Folder: ${GOOGLE_DRIVE_FOLDER_ID || 'Chưa cấu hình'}`);
+});
