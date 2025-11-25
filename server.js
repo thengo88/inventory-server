@@ -109,59 +109,43 @@ const db = new sqlite3.Database(DB_PATH);
 /**
  * Upload file to Google Drive
  */
-async function uploadToGoogleDrive(filePath, fileName) {
-    console.log(`[DEBUG] Starting uploadToGoogleDrive: ${fileName}`);
-    console.log(`[DEBUG] GOOGLE_DRIVE_FOLDER_ID: ${GOOGLE_DRIVE_FOLDER_ID}`);
-    console.log(`[DEBUG] Auth initialized: ${!!auth}`);
+// Cloudinary Config
+const cloudinary = require('cloudinary').v2;
+const streamifier = require('streamifier');
 
-    if (!auth || !GOOGLE_DRIVE_FOLDER_ID) {
-        console.warn('⚠️  Google Drive not configured (Missing Auth or Folder ID)');
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+/**
+ * Upload file to Cloudinary
+ */
+async function uploadToCloudinary(filePath, fileName) {
+    console.log(`[DEBUG] Starting uploadToCloudinary: ${fileName}`);
+
+    if (!process.env.CLOUDINARY_CLOUD_NAME) {
+        console.warn('⚠️  Cloudinary not configured, keeping local file');
         return null;
     }
 
-    try {
-        const authClient = await auth.getClient();
-        const fileMetadata = {
-            name: fileName,
-            parents: [GOOGLE_DRIVE_FOLDER_ID]
-        };
-        const media = {
-            mimeType: 'image/jpeg',
-            body: fs.createReadStream(filePath)
-        };
-        console.log('[DEBUG] Sending create request to Drive API...');
-        const response = await drive.files.create({
-            auth: authClient,
-            requestBody: fileMetadata, // Changed from resource to requestBody
-            media: media,
-            fields: 'id, webViewLink, webContentLink',
-            supportsAllDrives: true, // Support Shared Drives
-            keepRevisionForever: true
-        });
-
-        // Make file publicly accessible
-        await drive.permissions.create({
-            auth: authClient,
-            fileId: response.data.id,
-            requestBody: {
-                role: 'reader',
-                type: 'anyone'
+    return new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+            { folder: "inventory_app", public_id: fileName.split('.')[0] },
+            (error, result) => {
+                if (error) {
+                    console.error('❌ Error uploading to Cloudinary:', error);
+                    resolve(null);
+                } else {
+                    console.log('✅ Uploaded to Cloudinary:', result.secure_url);
+                    resolve(result.secure_url);
+                }
             }
-        });
+        );
 
-        // Get direct link
-        const file = await drive.files.get({
-            auth: authClient,
-            fileId: response.data.id,
-            fields: 'webContentLink'
-        });
-
-        console.log('✅ Uploaded to Google Drive:', file.data.webContentLink);
-        return file.data.webContentLink;
-    } catch (error) {
-        console.error('❌ Error uploading to Google Drive:', error.message);
-        return null;
-    }
+        fs.createReadStream(filePath).pipe(uploadStream);
+    });
 }
 
 /**
@@ -420,9 +404,9 @@ app.post('/admin/products/create', upload.single('productImage'), async (req, re
 
     let imagePath = '';
     if (req.file) {
-        // Upload to Google Drive
-        const driveLink = await uploadToGoogleDrive(req.file.path, req.file.filename);
-        imagePath = driveLink || `/uploads/${req.file.filename}`;
+        // Upload to Cloudinary
+        const cloudLink = await uploadToCloudinary(req.file.path, req.file.filename);
+        imagePath = cloudLink || `/uploads/${req.file.filename}`;
         console.log(`[DEBUG] Final imagePath: ${imagePath}`);
     }
 
@@ -453,8 +437,8 @@ app.post('/admin/products/edit/:sku', upload.single('productImage'), async (req,
         let newImage = row ? row.image : '';
 
         if (req.file) {
-            const driveLink = await uploadToGoogleDrive(req.file.path, req.file.filename);
-            newImage = driveLink || `/uploads/${req.file.filename}`;
+            const cloudLink = await uploadToCloudinary(req.file.path, req.file.filename);
+            newImage = cloudLink || `/uploads/${req.file.filename}`;
             console.log(`[DEBUG] Final newImage: ${newImage}`);
         }
 
