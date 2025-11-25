@@ -392,7 +392,7 @@ app.get('/admin/history', (req, res) => {
 app.get('/admin/download', (req, res) => {
     if (!req.session.user) return res.redirect('/admin');
     if (GOOGLE_SHEETS_ID) {
-        res.redirect(`https://docs.google.com/spreadsheets/d/${GOOGLE_SHEETS_ID}/export?format=xlsx`);
+        res.redirect(`[https://docs.google.com/spreadsheets/d/${GOOGLE_SHEETS_ID}/export?format=xlsx`](https://docs.google.com/spreadsheets/d/${GOOGLE_SHEETS_ID}/export?format=xlsx`));
     } else {
         res.send('Google Sheets chưa được cấu hình.');
     }
@@ -554,9 +554,32 @@ function getLocalIp() {
     return '0.0.0.0';
 }
 
+// --- KEEP ALIVE MECHANISM ---
+// Tự động ping server mỗi 14 phút để tránh Render sleep (Free tier limit 15 phút)
+const https = require('https');
+
+function keepAlive() {
+    const url = process.env.RENDER_EXTERNAL_URL 
+        ? `${process.env.RENDER_EXTERNAL_URL}/admin` 
+        : 'https://inventory-server-rfl9.onrender.com/admin';
+
+    https.get(url, (res) => {
+        console.log(`⚡ Keep-alive ping: ${res.statusCode}`);
+    }).on('error', (e) => {
+        console.error(`⚠️ Keep-alive ping error: ${e.message}`);
+    });
+}
+
+// Chỉ chạy khi ở trên Render (production)
+if (process.env.NODE_ENV === 'production') {
+    // Ping ngay lập tức khi khởi động
+    keepAlive();
+    // Sau đó ping mỗi 14 phút (14 * 60 * 1000 ms)
+    setInterval(keepAlive, 14 * 60 * 1000);
+}
+
 server.listen(PORT, '0.0.0.0', () => { 
     const ip = getLocalIp();
     console.log(`🚀 Server đang chạy tại: http://${ip}:${PORT}/admin`);
     console.log(`📊 Google Sheets ID: ${GOOGLE_SHEETS_ID || 'Chưa cấu hình'}`);
-    console.log(`📁 Google Drive Folder: ${GOOGLE_DRIVE_FOLDER_ID || 'Chưa cấu hình'}`);
-});
+    console
