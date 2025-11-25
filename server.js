@@ -8,7 +8,7 @@ const { Mutex } = require('async-mutex');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
-const http = require('http'); 
+const http = require('http');
 const { Server } = require("socket.io");
 require('dotenv').config();
 
@@ -19,7 +19,7 @@ const drive = google.drive('v3');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server); 
+const io = new Server(server);
 const PORT = process.env.PORT || 5000;
 
 // ============================================================
@@ -36,7 +36,7 @@ try {
                 'https://www.googleapis.com/auth/drive.file',
             ],
         });
-    } 
+    }
     // For production deployment with environment variables
     else if (process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_PRIVATE_KEY) {
         auth = new google.auth.GoogleAuth({
@@ -62,7 +62,7 @@ const GOOGLE_DRIVE_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
 // ============================================================
 // CẤU HÌNH ĐƯỜNG DẪN
 // ============================================================
-const BASE_DIR = process.cwd(); 
+const BASE_DIR = process.cwd();
 const UPLOAD_DIR = path.join(BASE_DIR, 'uploads');
 const DB_PATH = path.join(BASE_DIR, 'inventory.db');
 
@@ -80,9 +80,9 @@ const upload = multer({ storage: storage });
 
 // --- WEB & STATIC ---
 app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views')); 
+app.set('views', path.join(__dirname, 'views'));
 app.use(express.urlencoded({ extended: true }));
-app.use('/uploads', express.static(UPLOAD_DIR)); 
+app.use('/uploads', express.static(UPLOAD_DIR));
 app.use(session({
     secret: process.env.SESSION_SECRET || 'kho_secret_key_vip_123',
     resave: false,
@@ -194,7 +194,7 @@ async function writeToGoogleSheets(sheetName, headers, data) {
     const release = await sheetsMutex.acquire();
     try {
         const authClient = await auth.getClient();
-        
+
         // Clear existing data
         await sheets.spreadsheets.values.clear({
             auth: authClient,
@@ -288,10 +288,10 @@ async function syncGoogleSheetsToDb() {
         // Only import if database is empty
         if (count === 0) {
             const data = await readFromGoogleSheets(SHEET_NAME);
-            
+
             if (data.length > 0) {
                 const stmt = db.prepare("INSERT OR REPLACE INTO products (sku, name, location, quantity, image) VALUES (?, ?, ?, ?, ?)");
-                
+
                 for (const row of data) {
                     if (row[0]) { // SKU exists
                         stmt.run(
@@ -303,7 +303,7 @@ async function syncGoogleSheetsToDb() {
                         );
                     }
                 }
-                
+
                 stmt.finalize();
                 console.log(`✅ Imported ${data.length} products from Google Sheets`);
             }
@@ -321,11 +321,11 @@ db.serialize(() => {
         sku TEXT PRIMARY KEY, name TEXT, location TEXT, quantity INTEGER, image TEXT
     )`, (err) => {
         if (!err) {
-            db.run("ALTER TABLE products ADD COLUMN location TEXT", () => {});
-            db.run("ALTER TABLE products ADD COLUMN image TEXT", () => {});
+            db.run("ALTER TABLE products ADD COLUMN location TEXT", () => { });
+            db.run("ALTER TABLE products ADD COLUMN image TEXT", () => { });
         }
     });
-    
+
     db.run(`CREATE TABLE IF NOT EXISTS logs (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP, user TEXT, action TEXT, sku TEXT, quantity INTEGER, balance INTEGER)`);
     db.run(`CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT, role TEXT)`, (err) => {
         if (!err) createDefaultAdmin();
@@ -407,15 +407,19 @@ app.post('/admin/users/create', (req, res) => {
 
 app.post('/admin/products/create', upload.single('productImage'), async (req, res) => {
     if (!req.session.user) return res.redirect('/admin');
+    console.log('[DEBUG] POST /admin/products/create');
+    console.log('[DEBUG] req.file:', req.file);
+
     const { sku, name, location, quantity } = req.body;
-    
+
     let imagePath = '';
     if (req.file) {
         // Upload to Google Drive
         const driveLink = await uploadToGoogleDrive(req.file.path, req.file.filename);
         imagePath = driveLink || `/uploads/${req.file.filename}`;
+        console.log(`[DEBUG] Final imagePath: ${imagePath}`);
     }
-    
+
     const sql = "INSERT OR REPLACE INTO products (sku, name, location, quantity, image) VALUES (?, ?, ?, ?, ?)";
     db.run(sql, [sku, name, location, parseInt(quantity) || 0, imagePath], () => {
         syncDbToGoogleSheets();
@@ -427,23 +431,27 @@ app.get('/admin/products/edit/:sku', (req, res) => {
     if (!req.session.user) return res.redirect('/admin');
     db.get("SELECT * FROM products WHERE sku = ?", [req.params.sku], (err, row) => {
         if (err || !row) return res.redirect('/admin/dashboard');
-        res.render('edit_product', { product: row }); 
+        res.render('edit_product', { product: row });
     });
 });
 
 app.post('/admin/products/edit/:sku', upload.single('productImage'), async (req, res) => {
     if (!req.session.user) return res.redirect('/admin');
+    console.log(`[DEBUG] POST /admin/products/edit/${req.params.sku}`);
+    console.log('[DEBUG] req.file:', req.file);
+
     const sku = req.params.sku;
     const { name, location, quantity } = req.body;
-    
+
     db.get("SELECT image FROM products WHERE sku = ?", [sku], async (err, row) => {
         let newImage = row ? row.image : '';
-        
+
         if (req.file) {
             const driveLink = await uploadToGoogleDrive(req.file.path, req.file.filename);
             newImage = driveLink || `/uploads/${req.file.filename}`;
+            console.log(`[DEBUG] Final newImage: ${newImage}`);
         }
-        
+
         db.run("UPDATE products SET name = ?, location = ?, quantity = ?, image = ? WHERE sku = ?", [name, location, parseInt(quantity) || 0, newImage, sku], () => {
             syncDbToGoogleSheets();
             res.redirect('/admin/dashboard');
@@ -455,7 +463,7 @@ app.get('/admin/users/edit/:username', (req, res) => {
     if (!req.session.user) return res.redirect('/admin');
     db.get("SELECT * FROM users WHERE username = ?", [req.params.username], (err, row) => {
         if (err || !row) return res.redirect('/admin/dashboard');
-        res.render('edit_user', { user_edit: row }); 
+        res.render('edit_user', { user_edit: row });
     });
 });
 
@@ -525,7 +533,7 @@ app.post('/update_inventory', (req, res) => {
         }
 
         const sql = "INSERT OR REPLACE INTO products (sku, name, location, quantity, image) VALUES (?, ?, ?, ?, ?)";
-        db.run(sql, [sanitizedSku, currentName, currentLocation, newQty, currentImage], function(err) {
+        db.run(sql, [sanitizedSku, currentName, currentLocation, newQty, currentImage], function (err) {
             if (err) return res.status(500).json({ message: err.message });
             logTransaction(user, is_inbound ? 'NHẬP' : 'XUẤT', sanitizedSku, qty, newQty);
             syncDbToGoogleSheets();
@@ -535,7 +543,7 @@ app.post('/update_inventory', (req, res) => {
 });
 
 app.delete('/delete_inventory/:sku', (req, res) => {
-    db.run("DELETE FROM products WHERE sku = ?", [req.params.sku], function(err) {
+    db.run("DELETE FROM products WHERE sku = ?", [req.params.sku], function (err) {
         logTransaction(req.query.user, 'XÓA SP', req.params.sku, 0, 0);
         syncDbToGoogleSheets();
         res.json({ status: 'success', message: `Đã xóa.` });
@@ -554,31 +562,7 @@ function getLocalIp() {
     return '0.0.0.0';
 }
 
-// --- KEEP ALIVE MECHANISM ---
-// Tự động ping server mỗi 14 phút để tránh Render sleep (Free tier limit 15 phút)
-const https = require('https');
-
-function keepAlive() {
-    const url = process.env.RENDER_EXTERNAL_URL 
-        ? `${process.env.RENDER_EXTERNAL_URL}/admin` 
-        : 'https://inventory-server-rfl9.onrender.com/admin';
-
-    https.get(url, (res) => {
-        console.log(`⚡ Keep-alive ping: ${res.statusCode}`);
-    }).on('error', (e) => {
-        console.error(`⚠️ Keep-alive ping error: ${e.message}`);
-    });
-}
-
-// Chỉ chạy khi ở trên Render (production)
-if (process.env.NODE_ENV === 'production') {
-    // Ping ngay lập tức khi khởi động
-    keepAlive();
-    // Sau đó ping mỗi 14 phút (14 * 60 * 1000 ms)
-    setInterval(keepAlive, 14 * 60 * 1000);
-}
-
-server.listen(PORT, '0.0.0.0', () => { 
+server.listen(PORT, '0.0.0.0', () => {
     const ip = getLocalIp();
     console.log(`🚀 Server đang chạy tại: http://${ip}:${PORT}/admin`);
     console.log(`📊 Google Sheets ID: ${GOOGLE_SHEETS_ID || 'Chưa cấu hình'}`);
