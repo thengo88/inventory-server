@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+.env.local
+
+# Database
+*.db
+*.db-journal
+
+# Uploads
+uploads/
+
+# Google credentials
+*-credentials.json
+service-account.json
+
+# Build
+dist/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Excel files (no longer needed)
+*.xlsx
+*.xls
+
+# Logs
+*.log
+npm-debug.log*

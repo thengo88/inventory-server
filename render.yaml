@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: inventory-server
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: GOOGLE_SHEETS_ID
+        sync: false
+      - key: GOOGLE_DRIVE_FOLDER_ID
+        sync: false
+      - key: GOOGLE_SERVICE_ACCOUNT_EMAIL
+        sync: false
+      - key: GOOGLE_PRIVATE_KEY
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+    disk:
+      name: inventory-data
+      mountPath: /opt/render/project/src
+      sizeGB: 1
