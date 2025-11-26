@@ -503,6 +503,13 @@ app.get('/get_inventory', (req, res) => {
     });
 });
 
+app.get('/api/history', (req, res) => {
+    db.all("SELECT * FROM logs ORDER BY id DESC LIMIT 100", [], (err, rows) => {
+        if (err) return res.status(500).json({ status: 'error', message: err.message });
+        res.json({ status: 'success', history: rows });
+    });
+});
+
 app.post('/update_inventory', (req, res) => {
     const { sku, quantity, is_inbound, name, user, location } = req.body;
     if (!sku) return res.status(400).json({ message: 'Thiếu SKU.' });
