@@ -440,6 +440,28 @@ app.get('/admin/history', (req, res) => {
     });
 });
 
+app.post('/admin/history/delete', (req, res) => {
+    if (!req.session.user) return res.redirect('/admin');
+    let { logIds } = req.body;
+
+    if (!logIds) return res.redirect('/admin/history');
+
+    // Ensure logIds is an array
+    if (!Array.isArray(logIds)) {
+        logIds = [logIds];
+    }
+
+    // Create placeholders for SQL IN clause (?, ?, ?)
+    const placeholders = logIds.map(() => '?').join(',');
+    const sql = `DELETE FROM logs WHERE id IN (${placeholders})`;
+
+    db.run(sql, logIds, (err) => {
+        if (err) console.error('Error deleting logs:', err.message);
+        syncDbToGoogleSheets();
+        res.redirect('/admin/history');
+    });
+});
+
 app.get('/admin/download', (req, res) => {
     if (!req.session.user) return res.redirect('/admin');
     if (GOOGLE_SHEETS_ID) {
