@@ -54,53 +54,62 @@
                 </div>
             </div>
             <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-striped table-hover mb-0 align-middle" id="historyTable">
-                        <thead class="table-dark">
-                            <tr>
-                                <th>Thời gian</th>
-                                <th>Người dùng</th> <th>Hành động</th>
-                                <th>Mã SKU</th>     <th>Số lượng</th>
-                                <th>Tồn sau GD</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <% logs.forEach(function(log) { %>
+                <form action="/admin/history/delete" method="POST" id="deleteForm" onsubmit="return confirm('Bạn có chắc chắn muốn xóa các dòng đã chọn?');">
+                    <div class="p-2 d-flex justify-content-end bg-light border-bottom">
+                        <button type="submit" class="btn btn-danger btn-sm" id="deleteBtn" disabled>
+                            🗑 Xóa mục đã chọn (<span id="selectedCount">0</span>)
+                        </button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover mb-0 align-middle" id="historyTable">
+                            <thead class="table-dark">
                                 <tr>
-                                    <td style="white-space: nowrap;"><%= new Date(log.timestamp).toLocaleString('vi-VN') %></td>
-                                    
-                                    <td class="fw-bold text-secondary"><%= log.user %></td>
-                                    
-                                    <td>
-                                        <% 
-                                            let badgeClass = 'bg-secondary';
-                                            if(log.action.includes('NHẬP')) badgeClass = 'badge-NHẬP';
-                                            if(log.action.includes('XUẤT')) badgeClass = 'badge-XUẤT';
-                                            if(log.action.includes('XÓA')) badgeClass = 'badge-XÓA';
-                                        %>
-                                        <span class="badge <%= badgeClass %>"><%= log.action %></span>
-                                    </td>
-                                    
-                                    <td class="fw-bold text-primary"><%= log.sku %></td>
-                                    
-                                    <td class="<%= log.quantity > 0 ? 'text-success fw-bold' : '' %>">
-                                        <%= log.quantity %>
-                                    </td>
-                                    
-                                    <td><%= log.balance %></td>
+                                    <th style="width: 40px;"><input type="checkbox" id="selectAll" class="form-check-input"></th>
+                                    <th>Thời gian</th>
+                                    <th>Người dùng</th> <th>Hành động</th>
+                                    <th>Mã SKU</th>     <th>Số lượng</th>
+                                    <th>Tồn sau GD</th>
                                 </tr>
-                            <% }); %>
-                            
-                            <% if (logs.length === 0) { %>
-                                <tr class="no-data"><td colspan="6" class="text-center py-4 text-muted">Chưa có lịch sử nào.</td></tr>
-                            <% } %>
-                            
-                            <tr id="noResultRow" style="display: none;">
-                                <td colspan="6" class="text-center py-4 text-danger fw-bold">Không tìm thấy kết quả phù hợp.</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
+                            </thead>
+                            <tbody>
+                                <% logs.forEach(function(log) { %>
+                                    <tr>
+                                        <td><input type="checkbox" name="logIds" value="<%= log.id %>" class="form-check-input log-checkbox"></td>
+                                        <td style="white-space: nowrap;"><%= new Date(log.timestamp).toLocaleString('vi-VN') %></td>
+                                        
+                                        <td class="fw-bold text-secondary"><%= log.user %></td>
+                                        
+                                        <td>
+                                            <% 
+                                                let badgeClass = 'bg-secondary';
+                                                if(log.action.includes('NHẬP')) badgeClass = 'badge-NHẬP';
+                                                if(log.action.includes('XUẤT')) badgeClass = 'badge-XUẤT';
+                                                if(log.action.includes('XÓA')) badgeClass = 'badge-XÓA';
+                                            %>
+                                            <span class="badge <%= badgeClass %>"><%= log.action %></span>
+                                        </td>
+                                        
+                                        <td class="fw-bold text-primary"><%= log.sku %></td>
+                                        
+                                        <td class="<%= log.quantity > 0 ? 'text-success fw-bold' : '' %>">
+                                            <%= log.quantity %>
+                                        </td>
+                                        
+                                        <td><%= log.balance %></td>
+                                    </tr>
+                                <% }); %>
+                                
+                                <% if (logs.length === 0) { %>
+                                    <tr class="no-data"><td colspan="7" class="text-center py-4 text-muted">Chưa có lịch sử nào.</td></tr>
+                                <% } %>
+                                
+                                <tr id="noResultRow" style="display: none;">
+                                    <td colspan="7" class="text-center py-4 text-danger fw-bold">Không tìm thấy kết quả phù hợp.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -173,8 +182,40 @@
             document.getElementById("filterUser").value = "";
             sessionStorage.removeItem('searchSku');
             sessionStorage.removeItem('searchUser');
+            sessionStorage.removeItem('searchUser');
             filterTable();
         }
+
+        // 4. Xử lý Checkbox chọn nhiều
+        const selectAll = document.getElementById('selectAll');
+        const checkboxes = document.querySelectorAll('.log-checkbox');
+        const deleteBtn = document.getElementById('deleteBtn');
+        const selectedCountSpan = document.getElementById('selectedCount');
+
+        function updateDeleteButton() {
+            const checkedCount = document.querySelectorAll('.log-checkbox:checked').length;
+            selectedCountSpan.innerText = checkedCount;
+            deleteBtn.disabled = checkedCount === 0;
+        }
+
+        selectAll.addEventListener('change', function() {
+            checkboxes.forEach(cb => {
+                // Chỉ chọn những dòng đang hiển thị (không bị ẩn bởi bộ lọc)
+                if (cb.closest('tr').style.display !== 'none') {
+                    cb.checked = this.checked;
+                }
+            });
+            updateDeleteButton();
+        });
+
+        checkboxes.forEach(cb => {
+            cb.addEventListener('change', updateDeleteButton);
+        });
+
+        // Cập nhật lại khi lọc (bỏ chọn những dòng bị ẩn đi cho an toàn, hoặc giữ nguyên tùy logic)
+        // Ở đây ta giữ nguyên logic đơn giản: checkbox hoạt động độc lập với filter, 
+        // nhưng khi bấm Select All thì chỉ chọn row đang hiện.
+
     </script>
 </body>
 </html>
