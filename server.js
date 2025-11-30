@@ -93,8 +93,10 @@ app.use(session({
 // --- GOOGLE SHEETS CONFIG ---
 const SHEET_NAME = 'TonKho';
 const HISTORY_SHEET_NAME = 'LichSu';
+const USERS_SHEET_NAME = 'NguoiDung';
 const EXCEL_HEADERS = ['SKU', 'TÊN SẢN PHẨM', 'VỊ TRÍ', 'SỐ LƯỢNG', 'HÌNH ẢNH'];
 const HISTORY_HEADERS = ['THỜI GIAN', 'NGƯỜI DÙNG', 'HÀNH ĐỘNG', 'SKU', 'SỐ LƯỢNG', 'TỒN SAU KHI SỬA'];
+const USERS_HEADERS = ['USERNAME', 'PASSWORD', 'ROLE'];
 
 const sheetsMutex = new Mutex();
 app.use(bodyParser.json());
@@ -233,6 +235,14 @@ async function syncDbToGoogleSheets() {
             });
         });
 
+        // Get users
+        const users = await new Promise((resolve, reject) => {
+            db.all("SELECT * FROM users", [], (err, rows) => {
+                if (err) reject(err);
+                else resolve(rows);
+            });
+        });
+
         // Prepare products data
         const productData = products.map(p => [
             p.sku,
@@ -252,9 +262,17 @@ async function syncDbToGoogleSheets() {
             l.balance
         ]);
 
+        // Prepare users data
+        const userData = users.map(u => [
+            u.username,
+            u.password,
+            u.role
+        ]);
+
         // Write to Google Sheets
         await writeToGoogleSheets(SHEET_NAME, EXCEL_HEADERS, productData);
         await writeToGoogleSheets(HISTORY_SHEET_NAME, HISTORY_HEADERS, logData);
+        await writeToGoogleSheets(USERS_SHEET_NAME, USERS_HEADERS, userData);
 
         // Notify web admin
         io.emit('data_updated');
@@ -275,29 +293,72 @@ async function syncGoogleSheetsToDb() {
             });
         });
 
-        // Only import if database is empty
+        // --- IMPORT PRODUCTS ---
         if (count === 0) {
             const data = await readFromGoogleSheets(SHEET_NAME);
-
             if (data.length > 0) {
                 const stmt = db.prepare("INSERT OR REPLACE INTO products (sku, name, location, quantity, image) VALUES (?, ?, ?, ?, ?)");
-
                 for (const row of data) {
-                    if (row[0]) { // SKU exists
-                        stmt.run(
-                            String(row[0]),
-                            row[1] || '',
-                            row[2] || '',
-                            parseInt(row[3]) || 0,
-                            row[4] || ''
-                        );
+                    if (row[0]) {
+                        stmt.run(String(row[0]), row[1] || '', row[2] || '', parseInt(row[3]) || 0, row[4] || '');
                     }
                 }
-
                 stmt.finalize();
                 console.log(`✅ Imported ${data.length} products from Google Sheets`);
             }
         }
+
+        // --- IMPORT USERS ---
+        const userCount = await new Promise((resolve, reject) => {
+            db.get("SELECT count(*) as count FROM users", (err, row) => {
+                if (err) reject(err);
+                else resolve(row.count);
+            });
+        });
+
+        // Import users if only default admin exists (or empty)
+        // Note: createDefaultAdmin runs before this, so there is at least 1 user usually.
+        // We will overwrite/merge.
+        const userData = await readFromGoogleSheets(USERS_SHEET_NAME);
+        if (userData.length > 0) {
+            const stmt = db.prepare("INSERT OR REPLACE INTO users (username, password, role) VALUES (?, ?, ?)");
+            for (const row of userData) {
+                if (row[0]) {
+                    stmt.run(String(row[0]), String(row[1]), String(row[2]));
+                }
+            }
+            stmt.finalize();
+            console.log(`✅ Imported ${userData.length} users from Google Sheets`);
+        }
+
+        // --- IMPORT HISTORY ---
+        const logCount = await new Promise((resolve, reject) => {
+            db.get("SELECT count(*) as count FROM logs", (err, row) => {
+                if (err) reject(err);
+                else resolve(row.count);
+            });
+        });
+
+        if (logCount === 0) {
+            const logData = await readFromGoogleSheets(HISTORY_SHEET_NAME);
+            if (logData.length > 0) {
+                const stmt = db.prepare("INSERT INTO logs (timestamp, user, action, sku, quantity, balance) VALUES (?, ?, ?, ?, ?, ?)");
+                for (const row of logData) {
+                    // HISTORY_HEADERS = ['THỜI GIAN', 'NGƯỜI DÙNG', 'HÀNH ĐỘNG', 'SKU', 'SỐ LƯỢNG', 'TỒN SAU KHI SỬA']
+                    stmt.run(
+                        row[0], // timestamp
+                        row[1], // user
+                        row[2], // action
+                        row[3], // sku
+                        parseInt(row[4]) || 0, // quantity
+                        parseInt(row[5]) || 0  // balance
+                    );
+                }
+                stmt.finalize();
+                console.log(`✅ Imported ${logData.length} logs from Google Sheets`);
+            }
+        }
+
     } catch (error) {
         console.error('❌ Error syncing Google Sheets to DB:', error.message);
     }
