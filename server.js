@@ -453,7 +453,10 @@ app.post('/admin/users/create', (req, res) => {
     if (!req.session.user) return res.redirect('/admin');
     const { username, password, role } = req.body;
     const hash = bcrypt.hashSync(password, 10);
-    db.run("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", [username, hash, role], () => res.redirect('/admin/dashboard'));
+    db.run("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", [username, hash, role], () => {
+        syncDbToGoogleSheets();
+        res.redirect('/admin/dashboard');
+    });
 });
 
 app.post('/admin/products/create', upload.single('productImage'), async (req, res) => {
@@ -524,9 +527,15 @@ app.post('/admin/users/edit/:username', (req, res) => {
     const { password, role } = req.body;
     if (password && password.trim() !== "") {
         const hash = bcrypt.hashSync(password, 10);
-        db.run("UPDATE users SET password = ?, role = ? WHERE username = ?", [hash, role, username], () => res.redirect('/admin/dashboard'));
+        db.run("UPDATE users SET password = ?, role = ? WHERE username = ?", [hash, role, username], () => {
+            syncDbToGoogleSheets();
+            res.redirect('/admin/dashboard');
+        });
     } else {
-        db.run("UPDATE users SET role = ? WHERE username = ?", [role, username], () => res.redirect('/admin/dashboard'));
+        db.run("UPDATE users SET role = ? WHERE username = ?", [role, username], () => {
+            syncDbToGoogleSheets();
+            res.redirect('/admin/dashboard');
+        });
     }
 });
 
@@ -540,8 +549,12 @@ app.get('/admin/products/delete/:sku', (req, res) => {
 
 app.get('/admin/users/delete/:username', (req, res) => {
     if (!req.session.user) return res.redirect('/admin');
-    if (req.params.username !== 'admin') db.run("DELETE FROM users WHERE username = ?", [req.params.username], () => res.redirect('/admin/dashboard'));
-    else res.redirect('/admin/dashboard');
+    if (req.params.username !== 'admin') {
+        db.run("DELETE FROM users WHERE username = ?", [req.params.username], () => {
+            syncDbToGoogleSheets();
+            res.redirect('/admin/dashboard');
+        });
+    } else res.redirect('/admin/dashboard');
 });
 
 app.get('/admin/logout', (req, res) => { req.session.destroy(); res.redirect('/admin'); });
